@@ -229,6 +229,34 @@ void team_conv(float *** image, float **** kernels, float *** output,
 {
   // this call here is just dummy code
   // insert your own code instead
+ int h, w, x, y, c, m;	
+#pragma omp for
+for ( m = 0; m < nkernels; m++ ) {
+	#pragma omp for
+	for ( w = 0; w < width; w++ ) {
+		#pragma omp for
+    	for ( h = 0; h < height; h++ ) {
+			double sum = 0.0;
+			#pragma omp parallel firstprivate(sum) 
+			{
+				#pragma omp for 
+		        for ( c = 0; c < nchannels; c++ ) {
+		        	#pragma omp for
+		          	for ( x = 0; x < kernel_order; x++) {
+		          		#pragma omp for
+		            	for ( y = 0; y < kernel_order; y++ ) {
+		              		sum += image[w+x][h+y][c] * kernels[m][c][x][y];
+		            	}
+		          	}
+				#pragma omp critical
+		        	output[m][w][h] = sum;
+				}
+			}
+		}
+	}
+ }
+
+
   multichannel_conv(image, kernels, output, width,
                     height, nchannels, nkernels, kernel_order);
 }
@@ -302,4 +330,3 @@ float *** image, **** kernels, *** output;
 
   return 0;
 }
-0
