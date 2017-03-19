@@ -228,50 +228,9 @@ void team_conv(float *** image, float **** kernels, float *** output,
                int width, int height, int nchannels, int nkernels,
                int kernel_order)
 {
-<<<<<<< HEAD
   // this call here is just dummy code
   // insert your own code instead
-<<<<<<< HEAD
-  int h, w, x, y, c, m;	
-=======
- int h, w, x, y, c, m;	
->>>>>>> 16ebce0a556d1e69a3141d49e823bbe68f574bfa
-#pragma omp for collapse(6)
-for ( m = 0; m < nkernels; m++ ) {
-	for ( w = 0; w < width; w++ ) {
-    	for ( h = 0; h < height; h++ ) {
-			double sum = 0.0;
-			#pragma omp parallel firstprivate(sum) 
-			{
-		        for ( c = 0; c < nchannels; c++ ) {
-		          	for ( x = 0; x < kernel_order; x++) {
-		            	for ( y = 0; y < kernel_order; y++ ) {
-		              		sum += image[w+x][h+y][c] * kernels[m][c][x][y];
-		            	}
-		          	}
-				#pragma omp critical
-<<<<<<< HEAD
-		        {
-		        	output[m][w][h] = sum;
-		        }
-=======
-		        	output[m][w][h] = sum;
->>>>>>> 16ebce0a556d1e69a3141d49e823bbe68f574bfa
-				}
-			}
-		}
-	}
- }
 
-
-<<<<<<< HEAD
-  // multichannel_conv(image, kernels, output, width,
-  //                   height, nchannels, nkernels, kernel_order);
-=======
-  multichannel_conv(image, kernels, output, width,
-                    height, nchannels, nkernels, kernel_order);
->>>>>>> 16ebce0a556d1e69a3141d49e823bbe68f574bfa
-=======
  int h, w, x, y, c, m;
 
   #pragma omp for collapse(3) schedule(static) 
@@ -294,7 +253,6 @@ for ( m = 0; m < nkernels; m++ ) {
       }
   	}
   }
->>>>>>> 8824341414447f69cd5a0d98a97a84776b500800
 }
 
 int main(int argc, char ** argv)
