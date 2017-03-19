@@ -41,6 +41,7 @@
 /*#define DEBUGGING(_x) _x */
 /* to stop the printing of debugging information, use the following line: */
 #define DEBUGGING(_x)
+OMP_NESTED = true;
 
 
 /* write 3d matrix to stdout */
@@ -227,6 +228,7 @@ void team_conv(float *** image, float **** kernels, float *** output,
                int width, int height, int nchannels, int nkernels,
                int kernel_order)
 {
+<<<<<<< HEAD
   // this call here is just dummy code
   // insert your own code instead
 <<<<<<< HEAD
@@ -269,6 +271,30 @@ for ( m = 0; m < nkernels; m++ ) {
   multichannel_conv(image, kernels, output, width,
                     height, nchannels, nkernels, kernel_order);
 >>>>>>> 16ebce0a556d1e69a3141d49e823bbe68f574bfa
+=======
+ int h, w, x, y, c, m;
+
+  #pragma omp for collapse(3) schedule(static) 
+  for ( m = 0; m < nkernels; m++ ) {
+  	for ( w = 0; w < width; w++ ) {
+      	for ( h = 0; h < height; h++ ) {
+          double sum = 0.0;
+          #pragma omp firstprivate(sum)
+          {
+          #pragma omp for collapse(3) schedule(static)
+          for ( c = 0; c < nchannels; c++ ) {
+          	for ( x = 0; x < kernel_order; x++) {
+            	for ( y = 0; y < kernel_order; y++ ) {
+              		sum += image[w+x][h+y][c] * kernels[m][c][x][y];
+            	}
+          	} 
+	        }
+          output[m][w][h] = sum;
+          }
+      }
+  	}
+  }
+>>>>>>> 8824341414447f69cd5a0d98a97a84776b500800
 }
 
 int main(int argc, char ** argv)
@@ -279,7 +305,7 @@ int main(int argc, char ** argv)
 
 float *** image, **** kernels, *** output;
   float *** control_output;
-  long long mul_time;
+  long long old_mul_time, mul_time;
   int width, height, kernel_order, nchannels, nkernels;
   struct timeval start_time;
   struct timeval stop_time;
@@ -316,8 +342,13 @@ float *** image, **** kernels, *** output;
   DEBUGGING(write_out(A, a_dim1, a_dim2));
 
   /* use a simple multichannel convolution routine to produce control result */
+  gettimeofday(&start_time, NULL);
   multichannel_conv(image, kernels, control_output, width,
                     height, nchannels, nkernels, kernel_order);
+  gettimeofday(&stop_time, NULL);
+  old_mul_time = (stop_time.tv_sec - start_time.tv_sec) * 1000000L +
+    (stop_time.tv_usec - start_time.tv_usec);
+  printf("Orig conv time: %lld microseconds\n", old_mul_time);
 
   /* record starting time of team's code*/
   gettimeofday(&start_time, NULL);
@@ -331,6 +362,10 @@ float *** image, **** kernels, *** output;
   mul_time = (stop_time.tv_sec - start_time.tv_sec) * 1000000L +
     (stop_time.tv_usec - start_time.tv_usec);
   printf("Team conv time: %lld microseconds\n", mul_time);
+
+  double p = (old_mul_time/mul_time)*100;
+
+  printf("Teams faster by %d microseconds / %d%%\n",old_mul_time-mul_time,p);
 
   DEBUGGING(write_out(output, nkernels, width, height));
 
