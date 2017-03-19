@@ -35,13 +35,14 @@
 #include <omp.h>
 #include <math.h>
 
+
 /* the following two definitions of DEBUGGING control whether or not
    debugging information is written out. To put the program into
    debugging mode, uncomment the following line: */
 /*#define DEBUGGING(_x) _x */
 /* to stop the printing of debugging information, use the following line: */
 #define DEBUGGING(_x)
-OMP_NESTED = true;
+
 
 
 /* write 3d matrix to stdout */
@@ -228,32 +229,31 @@ void team_conv(float *** image, float **** kernels, float *** output,
                int width, int height, int nchannels, int nkernels,
                int kernel_order)
 {
-  // this call here is just dummy code
-  // insert your own code instead
 
  int h, w, x, y, c, m;
 
+omp_set_nested(1);
   #pragma omp for collapse(3) schedule(static) 
   for ( m = 0; m < nkernels; m++ ) {
-  	for ( w = 0; w < width; w++ ) {
-      	for ( h = 0; h < height; h++ ) {
-          double sum = 0.0;
-          #pragma omp firstprivate(sum)
-          {
-          #pragma omp for collapse(3) schedule(static)
-          for ( c = 0; c < nchannels; c++ ) {
-          	for ( x = 0; x < kernel_order; x++) {
-            	for ( y = 0; y < kernel_order; y++ ) {
-              		sum += image[w+x][h+y][c] * kernels[m][c][x][y];
-            	}
-          	} 
-	        }
-          output[m][w][h] = sum;
-          }
-      }
-  	}
-  }
-}
+ 	for ( w = 0; w < width; w++ ) {
+      		for ( h = 0; h < height; h++ ) {
+          		double sum = 0.0;
+			#pragma omp collapse(3) reduction(+:sum) schedule(dynamic)
+			{
+          		for ( c = 0; c < nchannels; c++ ) {
+      				for ( x = 0; x < kernel_order; x++) {
+            				for ( y = 0; y < kernel_order; y++ ) {
+              					sum += image[w+x][h+y][c] * kernels[m][c][x][y];
+            				}
+      				}
+			 
+			}
+			}
+         		 output[m][w][h] = sum;
+		}
+         	}
+      	}
+ }
 
 int main(int argc, char ** argv)
 {
@@ -321,9 +321,12 @@ float *** image, **** kernels, *** output;
     (stop_time.tv_usec - start_time.tv_usec);
   printf("Team conv time: %lld microseconds\n", mul_time);
 
-  double p = (old_mul_time/mul_time)*100;
+  double t = mul_time;
+  double t1  = old_mul_time;
 
-  printf("Teams faster by %d microseconds / %d%%\n",old_mul_time-mul_time,p);
+  long long p = 100 - ((t/t1)*100);
+
+  printf("Teams faster by %d microseconds / %lld percent\n",(old_mul_time-mul_time),p);
 
   DEBUGGING(write_out(output, nkernels, width, height));
 
