@@ -230,31 +230,33 @@ void team_conv(float *** image, float **** kernels, float *** output,
                int kernel_order)
 {
 
- int h, w, x, y, c, m;
+ int h, w, x, y, c, m,n;
 
-omp_set_nested(1);
+  omp_set_nested(1);
+  #pragma omp parallel private(h,w,x,y,c,m,n) shared(output,image,kernels,nkernels,width,height,nchannels,kernel_order)
+{
   #pragma omp for collapse(3) schedule(static) 
   for ( m = 0; m < nkernels; m++ ) {
  	for ( w = 0; w < width; w++ ) {
       		for ( h = 0; h < height; h++ ) {
           		double sum = 0.0;
-			#pragma omp collapse(3) reduction(+:sum) schedule(dynamic)
-			{
           		for ( c = 0; c < nchannels; c++ ) {
-      				for ( x = 0; x < kernel_order; x++) {
-            				for ( y = 0; y < kernel_order; y++ ) {
-              					sum += image[w+x][h+y][c] * kernels[m][c][x][y];
+      		//		for ( n = 0;n < (kernel_order*kernel_order); n++) {
+        		for( x = 0; x < kernel_order;x++){    	
+				for ( y = 0; y < kernel_order; y++ ) {
+              			//	x = n/kernel_order;
+				//	y = n%kernel_order;	
+					sum += image[w+x][h+y][c] * kernels[m][c][x][y];
             				}
       				}
-			 
-			}
-			}
-         		 output[m][w][h] = sum;
+		
 		}
-         	}
-      	}
+         	 output[m][w][h] = sum;
+	}
+	}
+  }
  }
-
+}
 int main(int argc, char ** argv)
 {
   //float image[W][H][C];
@@ -326,7 +328,7 @@ float *** image, **** kernels, *** output;
 
   long long p = 100 - ((t/t1)*100);
 
-  printf("Teams faster by %d microseconds / %lld percent\n",(old_mul_time-mul_time),p);
+  printf("Teams faster by %d microseconds / %lld%%\n",(old_mul_time-mul_time),p);
 
   DEBUGGING(write_out(output, nkernels, width, height));
 
