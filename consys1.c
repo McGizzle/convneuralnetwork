@@ -234,23 +234,23 @@ void team_conv(float *** image, float **** kernels, float *** output,
 
   omp_set_nested(1);
   #pragma omp parallel private(h,w,x,y,c,m,n) shared(output,image,kernels,nkernels,width,height,nchannels,kernel_order)
+
 {
+
   #pragma omp for collapse(3) schedule(static) 
-  for ( m = 0; m < nkernels; m++ ) {
+  for ( m = 0; m < nkernels; m++ ) 
+  {
  	for ( w = 0; w < width; w++ ) {
       		for ( h = 0; h < height; h++ ) {
           		double sum = 0.0;
           		for ( c = 0; c < nchannels; c++ ) {
-      		//		for ( n = 0;n < (kernel_order*kernel_order); n++) {
-        		for( x = 0; x < kernel_order;x++){    	
-				for ( y = 0; y < kernel_order; y++ ) {
-              			//	x = n/kernel_order;
-				//	y = n%kernel_order;	
-					sum += image[w+x][h+y][c] * kernels[m][c][x][y];
+        			for( x = 0; x < kernel_order;x++){    	
+					for ( y = 0; y < kernel_order; y++ ) {
+						sum += image[w+x][h+y][c] * kernels[m][c][x][y];
             				}
       				}
 		
-		}
+			}
          	 output[m][w][h] = sum;
 	}
 	}
