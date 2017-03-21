@@ -227,32 +227,44 @@ void multichannel_conv(float *** image, float **** kernels, float *** output,
 }
 
 /* the fast version of matmul written by the team */
-void team_conv(float *** image, float **** kernels, float *** output,
+void team_conv(float ***__restrict__ image, float ****__restrict__ kernels, float ***__restrict__ output,
                int width, int height, int nchannels, int nkernels,
                int kernel_order)
 {
 
  int h, w, x, y, c, m;
+float k[nkernels][kernel_order][kernel_order][nchannels];
+#pragma omp parallel for collapse(4) private(m,c,x,y) schedule(static) 
+ for(m=0;m<nkernels;m++){
+ 	for(c=0;c<nchannels;c++){
+ 		for(x=0;x<kernel_order;x++){
+ 			for(y=0;y<kernel_order;y++){
+ 				k[m][x][y][c] = kernels[m][c][x][y];
+ 			}
+ 		}
+ 	}
+ }
 
-#pragma omp parallel private(h,w,x,y,c,m) shared(output,image,kernels,nkernels,width,height,nchannels,kernel_order)
+#pragma omp parallel private(h,w,x,y,c,m) 
 {
-  #pragma omp for collapse(3) schedule(dynamic,1000) 
-  for ( m = 0; m < nkernels; m+=3 ) {
-    for ( w = 0; w < width; w+=3 ) {
-      for ( h = 0; h < height; h+=3 ) {
-        __m128 sum, sum1, sum2;
-	for ( c = 0; c < nchannels; c+=3 ) {
-          for( x = 0; x < kernel_order;x+=3){    	
-       	    for ( y = 0; y < kernel_order; y+=3 ) {
-		sum1 = _mm_loadu_ps(&kernels[m][c][x][y]);
-		sum2 = _mm_loadu_ps(&image[w+x][h+y][c]);
-		sum = _mm_mul_ps(sum1, sum2);
-		//sum += image[w+x][h+y][c] * kernels[m][c][x][y];
+  #pragma omp for collapse(3) schedule(static) 
+  for ( m = 0; m < nkernels; m+=4 ) {
+    for ( w = 0; w < width; w+=4 ) {
+      for ( h = 0; h < height; h+=4 ) {
+       	__m128 sum;
+          for( x = 0; x < kernel_order;x++){    	
+       	 	 for ( y = 0; y < kernel_order; y++ ) {
+       	     	for ( c = 0; c < nchannels; c++ ) {
+       	    		__m128 sum1 = _mm_loadu_ps(&image[w+x][h+y][c]);
+       	    		__m128 sum2 = _mm_loadu_ps(&k[m][x][y][c]);
+       	    		__m128 temp = _mm_mul_ps(sum1, sum2);
+       	    		sum = _mm_add_ps(temp, sum);
+			//sum += image[w+x][h+y][c] * k[m][x][y][c];
             }
       	  }
 		}
-		_mm_store_ps(&output[m][w][h], sum);
-       // output[m][w][h] = sum;
+        //output[m][w][h] = sum;
+        _mm_store_ps(&output[m][w][h], sum);
 	    }
 	 }
   }
