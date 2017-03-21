@@ -34,7 +34,7 @@
 #include <assert.h>
 #include <omp.h>
 #include <math.h>
-#include <xmmintrin.h>
+#include <x86intrin.h>
 
 
 
@@ -216,7 +216,7 @@ void multichannel_conv(float *** image, float **** kernels, float *** output,
         for ( c = 0; c < nchannels; c++ ) {
           for ( x = 0; x < kernel_order; x++) {
             for ( y = 0; y < kernel_order; y++ ) {
-              sum += image[w+x][h+y][c] * kernels[m][c][x][y];
+             sum += image[w+x][h+y][c] * kernels[m][c][x][y];
             }
           }
           output[m][w][h] = sum;
@@ -248,23 +248,31 @@ float k[nkernels][kernel_order][kernel_order][nchannels];
 #pragma omp parallel private(h,w,x,y,c,m) 
 {
   #pragma omp for collapse(3) schedule(static) 
-  for ( m = 0; m < nkernels; m+=4 ) {
-    for ( w = 0; w < width; w+=4 ) {
-      for ( h = 0; h < height; h+=4 ) {
-       	__m128 sum;
-          for( x = 0; x < kernel_order;x++){    	
-       	 	 for ( y = 0; y < kernel_order; y++ ) {
-       	     	for ( c = 0; c < nchannels; c++ ) {
-       	    		__m128 sum1 = _mm_loadu_ps(&image[w+x][h+y][c]);
-       	    		__m128 sum2 = _mm_loadu_ps(&k[m][x][y][c]);
-       	    		__m128 temp = _mm_mul_ps(sum1, sum2);
-       	    		sum = _mm_add_ps(temp, sum);
-			//sum += image[w+x][h+y][c] * k[m][x][y][c];
-            }
-      	  }
-		}
-        //output[m][w][h] = sum;
-        _mm_store_ps(&output[m][w][h], sum);
+  for( m = 0; m < nkernels; m++ ) {
+    for( w = 0; w < width; w++ ) {
+      for( h = 0; h < height; h++ ) {
+       	__m128 sum = _mm_setzero_ps();
+		__m128 sum1,sum2,temp;
+		for(x=0;x<kernel_order;x++){
+           for(y=0;y<kernel_order;y++){
+				for( c = 0; c < nchannels-3; c+=4 ) {
+					sum1 = _mm_loadu_ps(&image[w+x][h+y][c]);
+       	  			sum2 = _mm_loadu_ps(&k[m][x][y][c]);
+       	   		  	temp = _mm_mul_ps(sum1, sum2);
+       	   			 sum = _mm_add_ps(temp, sum);
+				}
+				__m128 left_over= _mm_setzero_ps();
+				float l = 0;
+				for(;c<nchannels;c++){
+					l +=  image[w+x][h+y][c] *  k[m][x][y][c];
+       			 }
+				left_over = _mm_set_ps(l,0,0,0);
+				sum = _mm_add_ps(sum,left_over);
+			}
+		}		
+		sum =  _mm_hadd_ps(sum,sum);
+		sum = _mm_hadd_ps(sum,sum);
+		_mm_store_ss(&output[m][w][h],sum);
 	    }
 	 }
   }
@@ -321,7 +329,7 @@ float *** image, **** kernels, *** output;
   gettimeofday(&stop_time, NULL);
   old_mul_time = (stop_time.tv_sec - start_time.tv_sec) * 1000000L +
     (stop_time.tv_usec - start_time.tv_usec);
-  printf("Orig conv time: %lld microseconds\n", old_mul_time);
+  //printf("Orig conv time: %lld microseconds\n", old_mul_time);
 
   /* record starting time of team's code*/
   gettimeofday(&start_time, NULL);
@@ -334,14 +342,18 @@ float *** image, **** kernels, *** output;
   gettimeofday(&stop_time, NULL);
   mul_time = (stop_time.tv_sec - start_time.tv_sec) * 1000000L +
     (stop_time.tv_usec - start_time.tv_usec);
-  printf("Team conv time: %lld microseconds\n", mul_time);
+  //printf("Team conv time: %lld microseconds\n", mul_time);
 
   double t = mul_time;
   double t1  = old_mul_time;
 
-  long long p = 100 - ((t/t1)*100);
 
-  printf("Teams faster by %d microseconds / %lld%%\n",(old_mul_time-mul_time),p);
+  long long p = 100 - ((t/t1)*100);
+ long long d = old_mul_time/mul_time;
+long long r = old_mul_time%mul_time;
+r = r*1000;
+long long decimal = r/mul_time;
+  printf("Teams faster %lld.%lld \n",d, decimal);
 
   DEBUGGING(write_out(output, nkernels, width, height));
 
