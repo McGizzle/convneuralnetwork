@@ -234,16 +234,18 @@ void team_conv(float ***__restrict__ image, float ****__restrict__ kernels, floa
 
  int h, w, x, y, c, m;
 float k[nkernels][kernel_order][kernel_order][nchannels];
+if(kernel_order<5){
 #pragma omp parallel for collapse(4) private(m,c,x,y) schedule(static) 
  for(m=0;m<nkernels;m++){
  	for(c=0;c<nchannels;c++){
  		for(x=0;x<kernel_order;x++){
  			for(y=0;y<kernel_order;y++){
- 				k[m][x][y][c] = kernels[m][c][x][y];
+ 				k[m][y][x][c] = kernels[m][c][x][y];
  			}
  		}
  	}
  }
+}
 
 #pragma omp parallel private(h,w,x,y,c,m) 
 {
@@ -251,32 +253,46 @@ float k[nkernels][kernel_order][kernel_order][nchannels];
   for( m = 0; m < nkernels; m++ ) {
     for( w = 0; w < width; w++ ) {
       for( h = 0; h < height; h++ ) {
-       	__m128 sum = _mm_setzero_ps();
+    	if(kernel_order<5){  
+	 	__m128 sum = _mm_setzero_ps();
 		__m128 sum1,sum2,temp;
 		for(x=0;x<kernel_order;x++){
            for(y=0;y<kernel_order;y++){
-				for( c = 0; c < nchannels-3; c+=4 ) {
+				int count = 0;
+				for( c = 0; c+3 < nchannels; c+=4 ) {
 					sum1 = _mm_loadu_ps(&image[w+x][h+y][c]);
-       	  			sum2 = _mm_loadu_ps(&k[m][x][y][c]);
+       	  			sum2 = _mm_loadu_ps(&k[m][y][x][c]);
        	   		  	temp = _mm_mul_ps(sum1, sum2);
-       	   			 sum = _mm_add_ps(temp, sum);
+       	   			sum = _mm_add_ps(temp, sum);
 				}
 				__m128 left_over= _mm_setzero_ps();
 				float l = 0;
 				for(;c<nchannels;c++){
-					l +=  image[w+x][h+y][c] *  k[m][x][y][c];
-       			 }
-				left_over = _mm_set_ps(l,0,0,0);
-				sum = _mm_add_ps(sum,left_over);
+					l +=  image[w+x][h+y][c] * k[m][y][x][c];
+				}
+				left_over = _mm_load_ss(&l);
+                sum = _mm_add_ps(sum,left_over);
 			}
 		}		
 		sum =  _mm_hadd_ps(sum,sum);
 		sum = _mm_hadd_ps(sum,sum);
 		_mm_store_ss(&output[m][w][h],sum);
 	    }
-	 }
+		else{
+			double sum = 0.0; 
+         	for( c = 0; c < nchannels; c++ ) {
+				for(x=0;x<kernel_order;x++){
+           			for(y=0;y<kernel_order;y++){
+						sum += image[w+x][h+y][c] * kernels[m][c][x][y];
+				}
+			}
+		}
+     	 output[m][w][h]=sum;
+	}	 
+	}
   }
  }
+}
 }
 int main(int argc, char ** argv)
 {
