@@ -254,28 +254,27 @@ if(kernel_order<7){
     for( w = 0; w < width; w++ ) {
       for( h = 0; h < height; h++ ) {
     	if(kernel_order<7){  
-	 		__m128 sum = _mm_setzero_ps();
-			__m128 sum1,sum2,temp;
 			double left_over= 0.0;
 			for(x=0;x<kernel_order;x++){
+ 				__m128 sum = _mm_setzero_ps();
+				__m128 sum1,sum2,temp;
            		for(y=0;y<kernel_order;y++){
 					for( c = 0; c < nchannels-3; c+=4 ) {
 						sum1 = _mm_loadu_ps(&image[w+x][h+y][c]);
        	  				sum2 = _mm_loadu_ps(&k[m][x][y][c]);
        	   		  		temp = _mm_mul_ps(sum1, sum2);
-       	   				//sum = _mm_add_ps(temp,sum);
-					sum = _mm_hadd_ps(temp,temp);
-                       		        sum = _mm_hadd_ps(sum,sum);
-					float f;
-                       		        _mm_store_ss(&f,sum);
-					left_over += f;
+       	   				sum = _mm_add_ps(temp,sum);
 					}
 					for(;c<nchannels;c++){
 						left_over += image[w+x][h+y][c] * k[m][x][y][c];
 					}
-				}	
-			}		
-	
+				}
+				sum = _mm_hadd_ps(sum,sum);
+				sum = _mm_hadd_ps(sum,sum);
+				float f;
+				_mm_store_ss(&f,sum);
+				left_over += f;
+			}	
 			output[m][w][h] = left_over;
 	    }
 		else{
