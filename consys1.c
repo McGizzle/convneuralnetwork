@@ -263,17 +263,20 @@ if(kernel_order<7){
 						sum1 = _mm_loadu_ps(&image[w+x][h+y][c]);
        	  				sum2 = _mm_loadu_ps(&k[m][x][y][c]);
        	   		  		temp = _mm_mul_ps(sum1, sum2);
-       	   				sum = _mm_add_ps(temp, sum);
+       	   				//sum = _mm_add_ps(temp,sum);
+					sum = _mm_hadd_ps(temp,temp);
+                       		        sum = _mm_hadd_ps(sum,sum);
+					float f;
+                       		        _mm_store_ss(&f,sum);
+					left_over += f;
 					}
 					for(;c<nchannels;c++){
 						left_over += image[w+x][h+y][c] * k[m][x][y][c];
 					}
 				}	
 			}		
-			sum = _mm_hadd_ps(sum,sum);
-			sum = _mm_hadd_ps(sum,sum);
-			_mm_store_ss(&output[m][w][h],sum);
-			output[m][w][h] += left_over;
+	
+			output[m][w][h] = left_over;
 	    }
 		else{
 			double sum = 0.0; 
